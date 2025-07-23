@@ -1,9 +1,16 @@
- {% extends "blog/base.html" %}
- {% block title %}{{ post.title }}{% endblock %}
- {% block content %}
+{% extends "blog/base.html" %}
+
+{% block title %}{{ post.title }}{% endblock %}
+
+{% block content %}
   <h1>{{ post.title }}</h1>
   <p class="date">
-    Published {{ post.publish }} by {{ post.author }}
+    Publié le {{ post.publish }} par {{ post.author }}
   </p>
   {{ post.body|linebreaks }}
- {% endblock %}
+  <p>
+    <a href="{% url 'blog:post_share' post.id %}">
+      share this post
+    </a>
+  </p>
+{% endblock %}
