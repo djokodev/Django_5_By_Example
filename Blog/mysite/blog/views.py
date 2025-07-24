@@ -1,10 +1,35 @@
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.shortcuts import render, get_object_or_404
+from django.views.decorators.http import require_POST
 from django.core.mail import send_mail
 from django.views.generic import ListView
-from .forms import EmailPostForm
-from .models import Post
+from .forms import EmailPostForm, CommentForm
+from .models import Post, Comment
 
+
+
+@require_POST
+def post_comment(request, post_id):
+    post = get_object_or_404(
+        Post,
+        id=post_id,
+        status=Post.Status.PUBLISHED
+    )
+    comment = None
+    form = CommentForm(data=request.POST)
+    if form.is_valid():
+        comment = form.save(False)
+        comment.post = post
+        comment.save()
+    return render(
+        request,
+        'blog/post/comment.html',
+        {
+            'post': post,
+            'form': form,
+            'comment': comment
+        }
+    )
 
 def post_share(request, post_id):
     post = get_object_or_404(
@@ -27,7 +52,7 @@ def post_share(request, post_id):
             )
 
             subject = (
-                f"{cd['name'] ({cd['email']})}"
+                f"{cd['name']} ({cd['email']})"
                 f"recommends you read {post.title}"
             )
             message = (
@@ -63,30 +88,30 @@ class PostListView(ListView):
     paginate_by = 3
     template_name = 'blog/post/list.html'
 
-def post_list(request):
-    post_list = Post.published.all()
-    paginator = Paginator(post_list, 3)
-
-    # Savoir quelle page l'utilisateur veut voir : L'utilisateur communique son choix via l'URL.
-    # http://.../blog/ -> Il ne précise rien, on suppose qu'il veut la page 1.
-    # http://.../blog/?page=2 -> Il demande explicitement la page 2.
-    # On récupère cette information depuis la requête HTTP
-    page_number = request.GET.get('page', 1)
-
-    try:
-        # Elle ne renvoie PAS une simple liste de 3 articles. Elle renvoie un objet spécial "Page".
-        posts = paginator.page(page_number)
-    except PageNotAnInteger:
-        posts = paginator.page(1)
-    except EmptyPage:
-        # Si l'utilisateur a demandé une page qui n'existe pas (trop grande), on lui donne la toute dernière page (posts = paginator.page(paginator.num_pages)).
-        # C'est plus sympa que de lui afficher une erreur
-        posts = paginator.page(paginator.num_pages)
-    return render(
-        request,
-        'blog/post/list.html',
-        {'posts':posts}
-    )
+# def post_list(request):
+#     post_list = Post.published.all()
+#     paginator = Paginator(post_list, 3)
+#
+#     # Savoir quelle page l'utilisateur veut voir : L'utilisateur communique son choix via l'URL.
+#     # http://.../blog/ -> Il ne précise rien, on suppose qu'il veut la page 1.
+#     # http://.../blog/?page=2 -> Il demande explicitement la page 2.
+#     # On récupère cette information depuis la requête HTTP
+#     page_number = request.GET.get('page', 1)
+#
+#     try:
+#         # Elle ne renvoie PAS une simple liste de 3 articles. Elle renvoie un objet spécial "Page".
+#         posts = paginator.page(page_number)
+#     except PageNotAnInteger:
+#         posts = paginator.page(1)
+#     except EmptyPage:
+#         # Si l'utilisateur a demandé une page qui n'existe pas (trop grande), on lui donne la toute dernière page (posts = paginator.page(paginator.num_pages)).
+#         # C'est plus sympa que de lui afficher une erreur
+#         posts = paginator.page(paginator.num_pages)
+#     return render(
+#         request,
+#         'blog/post/list.html',
+#         {'posts':posts}
+#     )
 
 def post_detail(request, year, month, day, post):
     post = get_object_or_404(
@@ -102,8 +127,17 @@ def post_detail(request, year, month, day, post):
     # except Post.DoesNotExist:
     #     raise Http404("No Post found")
 
+    # Liste des commentaires actif pour cette article
+    comments = post.comments.filter(active=True)
+
+    form = CommentForm()
+
     return render(
         request,
         'blog/post/detail.html',
-        {'post': post}
+        {
+            'post': post,
+            'comments':comments,
+            'form': form
+        }
     )
